@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,11 @@
 #include <errno.h>
 #include <netdb.h>
 #include <sys/time.h>
+#include <netinet/ip.h>
+
+#ifndef NI_MAXHOST
+#define NI_MAXHOST 1025  
+#endif
 
 #define MAX_HOPS 30
 #define PACKET_SIZE 64
@@ -24,12 +30,10 @@ unsigned short checksum(void *b, int len) {
     unsigned short *buf = b;
     unsigned int sum = 0;
     unsigned short result;
-
-    for (sum = 0; len > 1; len -= 2)
+    for (; len > 1; len -= 2)
         sum += *buf++;
     if (len == 1)
-        sum += *(unsigned char *) buf;
-
+        sum += *(unsigned char *)buf;
     sum = (sum >> 16) + (sum & 0xFFFF);
     sum += (sum >> 16);
     result = ~sum;
@@ -43,14 +47,18 @@ void create_icmp_packet(struct icmp_packet *pkt, int seq) {
     pkt->hdr.code = 0;
     pkt->hdr.un.echo.id = getpid();
     pkt->hdr.un.echo.sequence = seq;
+    memset(pkt->msg, 0xAA, sizeof(pkt->msg));
+    pkt->hdr.checksum = 0;
     pkt->hdr.checksum = checksum(pkt, sizeof(struct icmp_packet));
 }
 
 // Визначення доменного імені по IP-адресі
-void resolve_hostname(char *ip) {
-    struct hostent *host = gethostbyaddr(ip, sizeof(struct in_addr), AF_INET);
-    if (host)
-        printf(" (%s)", host->h_name);
+void resolve_hostname(struct in_addr *addr) {
+    char host[NI_MAXHOST];
+    if (getnameinfo((struct sockaddr *)&(struct sockaddr_in){.sin_family = AF_INET, .sin_addr = *addr},
+                    sizeof(struct sockaddr_in), host, sizeof(host), NULL, 0, NI_NAMEREQD) == 0) {
+        printf(" (%s)", host);
+    }
 }
 
 // Основна функція traceroute
