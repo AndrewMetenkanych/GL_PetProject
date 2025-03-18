@@ -79,13 +79,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    struct timeval timeout = {TIMEOUT, 0};
-    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-
     printf("Tracing route to %s\n", dest_ip);
 
     for (int ttl = 1; ttl <= MAX_HOPS; ttl++) {
-        setsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+        if (setsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl)) < 0) {
+            perror("setsockopt(IP_TTL) failed");
+            close(sockfd);
+            return 1;
+        }
+
+        int ttl_check;
+        socklen_t len = sizeof(ttl_check);
+        if (getsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl_check, &len) == 0) {
+            printf("[DEBUG] TTL встановлено в: %d\n", ttl_check);
+        } else {
+            perror("getsockopt(IP_TTL) failed");
+        }
 
         struct icmp_packet pkt;
         create_icmp_packet(&pkt, ttl);
@@ -102,22 +111,36 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (recvfrom(sockfd, recv_buf, sizeof(recv_buf), 0, (struct sockaddr *) &sender, &addr_len) < 0) {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
+        struct timeval timeout = {TIMEOUT, 0};
+
+        if (select(sockfd + 1, &readfds, NULL, NULL, &timeout) == 0) {
             printf("%d *\n", ttl);
             continue;
         }
 
+        int bytes_received = recvfrom(sockfd, recv_buf, sizeof(recv_buf), 0, (struct sockaddr *) &sender, &addr_len);
+        if (bytes_received < 0) {
+            continue;
+        }
+
         gettimeofday(&end, NULL);
-        double rtt = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0;
 
-        char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &sender.sin_addr, ip, sizeof(ip));
+        struct iphdr *ip_hdr = (struct iphdr *)recv_buf;
+        struct icmphdr *icmp_hdr = (struct icmphdr *)(recv_buf + (ip_hdr->ihl * 4));
 
-        printf("%d %s", ttl, ip);
-        resolve_hostname(ip);
-        printf("  %.2f ms\n", rtt);
+        printf("[DEBUG] Отримано ICMP type: %d, code: %d від %s\n", icmp_hdr->type, icmp_hdr->code, inet_ntoa(sender.sin_addr));
 
-        if (strcmp(ip, dest_ip) == 0) {
+        if (icmp_hdr->type == ICMP_TIME_EXCEEDED) {
+            printf("%d %s", ttl, inet_ntoa(sender.sin_addr));
+            resolve_hostname(&sender.sin_addr);
+            printf("  %.2f ms\n", (end.tv_usec - start.tv_usec) / 1000.0);
+        } else if (icmp_hdr->type == ICMP_ECHOREPLY) {
+            printf("%d %s", ttl, inet_ntoa(sender.sin_addr));
+            resolve_hostname(&sender.sin_addr);
+            printf("  %.2f ms\n", (end.tv_usec - start.tv_usec) / 1000.0);
             printf("Trace complete.\n");
             break;
         }
