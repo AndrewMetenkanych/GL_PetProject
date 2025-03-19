@@ -18,14 +18,14 @@
 
 #define MAX_HOPS 30
 #define PACKET_SIZE 64
-#define TIMEOUT 1  // Таймаут у секундах
+#define TIMEOUT 1  // Timeout in seconds
 
 struct icmp_packet {
     struct icmphdr hdr;
     char msg[PACKET_SIZE - sizeof(struct icmphdr)];
 };
 
-// Функція для розрахунку контрольної суми ICMP-пакета
+// Function for calculating the checksum of an ICMP packet
 unsigned short checksum(void *b, int len) {
     unsigned short *buf = b;
     unsigned int sum = 0;
@@ -40,7 +40,7 @@ unsigned short checksum(void *b, int len) {
     return result;
 }
 
-// Створення ICMP Echo Request
+// Creation ICMP Echo Request
 void create_icmp_packet(struct icmp_packet *pkt, int seq) {
     memset(pkt, 0, sizeof(struct icmp_packet));
     pkt->hdr.type = ICMP_ECHO;
@@ -52,7 +52,7 @@ void create_icmp_packet(struct icmp_packet *pkt, int seq) {
     pkt->hdr.checksum = checksum(pkt, sizeof(struct icmp_packet));
 }
 
-// Визначення доменного імені по IP-адресі
+// Determining a domain name by IP address
 void resolve_hostname(struct in_addr *addr) {
     char host[NI_MAXHOST];
     if (getnameinfo((struct sockaddr *)&(struct sockaddr_in){.sin_family = AF_INET, .sin_addr = *addr},
@@ -61,7 +61,7 @@ void resolve_hostname(struct in_addr *addr) {
     }
 }
 
-// Основна функція traceroute
+// The main function of traceroute
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <destination IP>\n", argv[0]);
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
         int ttl_check;
         socklen_t len = sizeof(ttl_check);
         if (getsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl_check, &len) == 0) {
-            printf("[DEBUG] TTL встановлено в: %d\n", ttl_check);
+            printf("[DEBUG] TTL set to: %d\n", ttl_check);
         } else {
             perror("getsockopt(IP_TTL) failed");
         }
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
         struct iphdr *ip_hdr = (struct iphdr *)recv_buf;
         struct icmphdr *icmp_hdr = (struct icmphdr *)(recv_buf + (ip_hdr->ihl * 4));
 
-        printf("[DEBUG] Отримано ICMP type: %d, code: %d від %s\n", icmp_hdr->type, icmp_hdr->code, inet_ntoa(sender.sin_addr));
+        printf("[DEBUG] Received ICMP type: %d, code: %d from %s\n", icmp_hdr->type, icmp_hdr->code, inet_ntoa(sender.sin_addr));
 
         if (icmp_hdr->type == ICMP_TIME_EXCEEDED) {
             printf("%d %s", ttl, inet_ntoa(sender.sin_addr));
