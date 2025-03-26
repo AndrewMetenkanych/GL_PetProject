@@ -27,6 +27,3 @@
 <br /> **Output example:**
 ![image](https://github.com/user-attachments/assets/e7828f9b-0474-49e1-8dfb-de13204aed56)
 ![image](https://github.com/user-attachments/assets/a164db7b-be1f-4c4b-b968-50cda65c7a2e)
-
-
-Presentation URL (https://docs.google.com/presentation/d/1O07qAqzsKxZoytUflY5RmmZA3fCd7RIa/edit?usp=sharing&ouid=112649509410099775351&rtpof=true&sd=true)
